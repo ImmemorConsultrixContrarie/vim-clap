@@ -1,8 +1,8 @@
 #![feature(pattern)]
 
+use extracted_fzy::match_and_score_with_positions;
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
-use rff::match_and_score_with_positions;
 
 use std::str::pattern::Pattern;
 
@@ -20,12 +20,23 @@ fn substr_scorer(niddle: &str, haystack: &str) -> Option<(f64, Vec<usize>)> {
     let mut offset = 0;
     let mut positions = Vec::new();
     for sub_niddle in niddle.split_whitespace() {
-        match find_start_at(haystack, offset, sub_niddle) {
+        let sub_niddle = sub_niddle.to_lowercase();
+
+        match find_start_at(haystack, offset, &sub_niddle) {
             Some(idx) => {
-                offset = idx;
-                let niddle_len = sub_niddle.len();
-                positions.extend_from_slice(&indices[offset..offset + niddle_len]);
-                offset += niddle_len;
+                offset = idx + sub_niddle.len();
+                // For build without overflow checks this could be written as
+                // `let mut pos = idx - 1;` with `|| { pos += 1; pos }` closure.
+                let mut pos = idx;
+                positions.resize_with(
+                    positions.len() + sub_niddle.len(),
+                    // Simple endless iterator for `idx..` range. Even though it's endless,
+                    // it will iterate only `sub_niddle.len()` times.
+                    || {
+                        pos += 1;
+                        pos - 1
+                    },
+                );
             }
             None => return None,
         }
@@ -50,9 +61,7 @@ fn fuzzy_match(query: &str, candidates: Vec<String>) -> PyResult<(Vec<Vec<usize>
     let scorer: Box<dyn Fn(&str) -> Option<(f64, Vec<usize>)>> = if query.contains(" ") {
         Box::new(|line: &str| substr_scorer(query, line))
     } else {
-        Box::new(|line: &str| {
-            match_and_score_with_positions(query, line).map(|(_, score, indices)| (score, indices))
-        })
+        Box::new(|line: &str| match_and_score_with_positions(query, line))
     };
 
     let mut ranked = candidates
