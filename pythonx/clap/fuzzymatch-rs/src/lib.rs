@@ -12,9 +12,7 @@ fn find_start_at<'a, P: Pattern<'a>>(slice: &'a str, at: usize, pat: P) -> Optio
 }
 
 fn substr_scorer(niddle: &str, haystack: &str) -> Option<(f64, Vec<usize>)> {
-    let niddle = niddle.to_lowercase();
     let haystack = haystack.to_lowercase();
-    let indices: Vec<usize> = (0..haystack.len()).collect();
     let haystack = haystack.as_str();
 
     let mut offset = 0;
